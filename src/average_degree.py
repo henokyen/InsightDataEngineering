@@ -18,18 +18,21 @@ from priority_dictionary import priority_dict
  i.e., for edge objects that __eq__ compares equal, __hash__ returns the same hash value.
  """
 class Edge (object):  
-    """ Initializes an edge object with an origination-end (HashTagFrom) and the other-end (HashTagTo) points.
+    """ Initializes an edge object with an origination-end (HashTagFrom) and the other-end (HashTagTo).
     """
     def __init__ (self,HashTagFrom, HashTagTo):   
         self.HashTagFrom=HashTagFrom
         self.HashTagTo=HashTagTo
+    
     """ Returns the origination-end and the other-end of an edge 
     """        
     def getHashTags(self):    
         return self.HashTagFrom,self.HashTagTo
+    
     def __str__(self):
         return self.HashTagFrom+"->"+self.HashTagTo
-    """ A method to identify identical edges. Twitter hashtag graph is undirected graph, meaning edges do not have orientation. 
+    
+    """ A method to identify identical edges. Since, the twitter hashtag graph is undirected graph edges do not have direction. 
         For example edges sp->ap and ap->sp are equal and should have the same hash value.
     """
     def __eq__(self,other):       
@@ -38,6 +41,7 @@ class Edge (object):
         elif (self.HashTagFrom == other.HashTagFrom and other.HashTagTo == self.HashTagTo):
             return True
         else: return False
+    
     """ Combine the two end-points of an edge, sort the resulting string and then hash it.                    
          """     
     def __hash__(self):          
@@ -46,19 +50,19 @@ class Edge (object):
         return hash(CompinedHashtags)
     """
 This class represents the Twitter-hashtag graph as a collection of Hashtags and edges.    
-hash_tagset is a dictionary of hashtags as keys and their respective degrees as values.
-dict_edge_set is a another dictionary with edges as keys and their creation times as values. 
-In the dict_edge_set dictionary edges are prioritized based on their creation time, i.e., edges come out in order of their priority,
-This priority queue is implemented as a min-heap, which is implemented in priority_dictionary.py (Adapted from: https://gist.github.com/matteodellamico/4451520)
+hash_tagset is a dictionary with hashtags as keys and their respective degrees as values.
+dict_edge_set is also a another dictionary with edges as keys and their creation times as values. 
+In the dict_edge_set dictionary, edges are prioritized based on their creation time, i.e., edges come out in order of their creation time,
+This priority queue is a min-heap priority queue, which is implemented in priority_dictionary.py (Originally from: https://gist.github.com/matteodellamico/4451520). 
+This module is slightly modified to make it work for this challenge.  
 
-The eviction method evicts tweets (also edges and hashtags) older than 60 seconds from the maximum timestamp being processed. 
+The Eviction method evicts tweets (also edges and hashtags) older than 60 seconds from the maximum timestamp being processed. 
 Each Hashtag (i.e., end-points) of an evicted edge will have its degree reduced by one and if that reduction results in 0, then that hashtag will be deleted from the graph.
 
 The Output method writes the value of the rolling_average to a rolling_output file only if the size of the hash_tagset is non-zero. Otherwise it writes the value 0.00    
 
-The ProcessTweet method parses each tweet and builds Twitter-hashtag graph. The method extract unique hashtags and form edges. 
+The ProcessTweet method parses each tweet and builds the Twitter-hashtag graph. The method extract unique hashtags and use them to form edges. 
 Based on their creation times, edges and hashtags are added into the graph.
-
 """   
 class HashTagGraph(object):   
     hash_tagset = {} 
@@ -95,7 +99,7 @@ class HashTagGraph(object):
     def ProcessTweet(self, Tweet):           
             self.creation_time = datetime.strptime(Tweet['created_at'],HashTagGraph.DATE_FORMAT)         
             if (self.latest_time < self.creation_time or ((self.latest_time - self.creation_time).total_seconds() < TIME_WINDOW)):                              
-                """ collect unique hashtags from a tweet and return it as a list.Hence no self connection in the graph """
+                """ collect unique hashtags from a tweet and return it as a list.Hence, no self connection would exist in the graph """
                 UniqueHashtags = list(set([x["text"] for x in Tweet['entities']['hashtags']])) 
                 hashtags_count = len(UniqueHashtags) 
         
@@ -104,7 +108,7 @@ class HashTagGraph(object):
                     PairHashtag = [(UniqueHashtags[i],UniqueHashtags[j]) for i in range(hashtags_count) for j in range(i+1, hashtags_count)]                
                     for Pair in PairHashtag:
                         """ 
-                        Add create an edge and add it to the graph.Then, the individual end-points of the edge are also added to the graph
+                        Create an edge and add it to the graph.Then, the individual end-points of the edge are also added to the graph
                         """                    
                         Ed = Edge(Pair[0],Pair[1])                    
                         self.dict_edge_set[Ed] = self.creation_time                       
@@ -113,17 +117,17 @@ class HashTagGraph(object):
                         if (Pair[1] in self.hash_tagset):self.hash_tagset[Pair[1]] +=1
                         else:self.hash_tagset[Pair[1]] =1                                    
                     """ 
-                    now that the graph changes, update the Latest and Earliest times                
+                    now that the graph has changed, update the Latest and Earliest times                
                     """ 
                     if (self.latest_time < self.creation_time): self.latest_time = self.creation_time
                     if (self.earliest_time > self.creation_time): self.earliest_time = self.creation_time                          
-                    """ If a tweet contains only one hashtag, then it won't affect the graph. 
-                    But can evict prior tweets based on its creation time, so update the maximum timestamp
+                    """ If a tweet contains only one hashtag, then that hashtag can't be added to the graph. 
+                    But it can trigger evicttion prior tweets based on its creation time, so update the maximum timestamp processed 
                     """
                 elif hashtags_count == 1:
                     self.creation_time = datetime.strptime(Tweet['created_at'],HashTagGraph.DATE_FORMAT)
                     """
-                     If a tweet is an empty, then set creation time to 
+                     If a tweet is empty, then set creation time to 
                      the previous maximum timestamp, so that the tweet won't be considered in building the graph
                     """   
                 else: self.creation_time = self.latest_time        
@@ -148,7 +152,7 @@ if __name__ == '__main__':
     This is the main loop.
      For each individual tweet 
       call the ProcessTweet method
-      if needed evict older tweets (i.e., update the graph)    
+      if needed, evict older tweets (i.e., update the graph)    
       write the current value of the Rolling average of the graph to an output file 
     """    
     for line in fileinput.input(tweet_source):               
@@ -156,7 +160,7 @@ if __name__ == '__main__':
         if 'limit' in Tweet: continue # rate-limit inputs are ignored 
         twitter_graph.ProcessTweet(Tweet)
         """This condition is always false for empty tweets and for tweets which are out of order in time and are outside the 60-second window,
-            Otherwise perform eviction  """                   
+            otherwise perform eviction  """                   
         if ((twitter_graph.creation_time -twitter_graph.earliest_time).total_seconds() ) > TIME_WINDOW:
             twitter_graph.Eviction(twitter_graph.creation_time)  
         twitter_graph.Output(rolling_output) 
